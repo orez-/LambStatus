@@ -14,12 +14,13 @@ describe('sendEmails', () => {
   let sendEmailStub
   let queryIncidentUpdatesStub
   let listUsersStub
+  const timezone = 'America/Los_Angeles'
 
   beforeEach(() => {
     sinon.stub(CloudFormation.prototype, 'getSubscribersPoolID')
     sinon.stub(CloudFormation.prototype, 'getStatusPageCloudFrontURL')
     sinon.stub(SettingsProxy.prototype, 'getServiceName')
-    getEmailNotificationStub = sinon.stub(SettingsProxy.prototype, 'getEmailNotification').returns({enable: true})
+    getEmailNotificationStub = sinon.stub(SettingsProxy.prototype, 'getEmailNotification').returns({enable: true, emailTimezone: timezone})
     sendEmailStub = sinon.stub(SES.prototype, 'sendEmailWithRetry').returns(new Promise(resolve => { resolve() }))
     sinon.stub(IncidentsStore.prototype, 'get').returns({})
     queryIncidentUpdatesStub = sinon.stub(IncidentUpdatesStore.prototype, 'query')
@@ -126,7 +127,7 @@ describe('sendEmails', () => {
         const incident = {name: incidentName}
         const incidentUpdates = [{message: 'test', incidentStatus: status, createdAt: '1'}]
 
-        const email = new IncidentEmailContent({serviceName, incident, incidentUpdates})
+        const email = new IncidentEmailContent({serviceName, incident, incidentUpdates, timezone})
         const actual = email.getTitle()
         assert(actual.includes(incidentName))
         assert(actual.includes(status))
@@ -141,7 +142,7 @@ describe('sendEmails', () => {
         const token = 'secret'
         const user = {username, token}
 
-        const email = new IncidentEmailContent({statusPageURL, incident: {}, incidentUpdates: [{}]})
+        const email = new IncidentEmailContent({statusPageURL, incident: {}, incidentUpdates: [{}], timezone})
         const actual = email.getBody(user)
         assert(actual.includes(token))
         assert(actual.includes(username))
@@ -149,14 +150,14 @@ describe('sendEmails', () => {
       })
 
       it('should include the word \'Incident\'', async () => {
-        const email = new IncidentEmailContent({incident: {}, incidentUpdates: [{}]})
+        const email = new IncidentEmailContent({incident: {}, incidentUpdates: [{}], timezone})
         const actual = email.getBody({})
         assert(actual.includes('Incident'))
         assert(!actual.includes('Maintenance'))
       })
 
       it('should not include \'Previous Updates\' if only 1 update', async () => {
-        const email = new IncidentEmailContent({incident: {}, incidentUpdates: [{}]})
+        const email = new IncidentEmailContent({incident: {}, incidentUpdates: [{}], timezone})
         const actual = email.getBody({})
         assert(!actual.includes('Previous Updates'))
         assert(!actual.includes('New Incident Status'))
@@ -165,7 +166,7 @@ describe('sendEmails', () => {
       it('should return error if no updates', async () => {
         let err
         try {
-          const email = new IncidentEmailContent({incident: {}, incidentUpdates: []})
+          const email = new IncidentEmailContent({incident: {}, incidentUpdates: [], timezone})
           email.getBody({})
         } catch (error) {
           err = error
@@ -180,7 +181,7 @@ describe('sendEmails', () => {
   describe('MaintenanceEmailContent', () => {
     describe('getBody', () => {
       it('should include the word \'Maintenance\'', async () => {
-        const email = new MaintenanceEmailContent({maintenance: {}, maintenanceUpdates: [{}]})
+        const email = new MaintenanceEmailContent({maintenance: {}, maintenanceUpdates: [{}], timezone})
         const actual = email.getBody({})
         assert(actual.includes('Maintenance'))
         assert(!actual.includes('Incident'))
@@ -189,10 +190,10 @@ describe('sendEmails', () => {
       it('should include the start and end time', async () => {
         const startAt = '2018-04-09T00:00:00Z'
         const endAt = '2018-04-09T01:00:00Z'
-        const email = new MaintenanceEmailContent({maintenance: {startAt, endAt}, maintenanceUpdates: [{}]})
+        const email = new MaintenanceEmailContent({maintenance: {startAt, endAt}, maintenanceUpdates: [{}], timezone})
         const actual = email.getBody({})
-        assert(actual.includes('Apr 8, 17:00 PST'))
-        assert(actual.includes('Apr 8, 18:00 PST'))
+        assert(actual.includes('Apr 8, 17:00 PDT'))
+        assert(actual.includes('Apr 8, 18:00 PDT'))
       })
     })
   })

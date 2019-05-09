@@ -1,6 +1,7 @@
 import React, { PropTypes } from 'react'
 import ReactTooltip from 'react-tooltip'
 import classnames from 'classnames'
+import momentTimezone from 'moment-timezone'
 import ErrorMessage from 'components/common/ErrorMessage'
 import RadioButtonGroup from 'components/common/RadioButtonGroup'
 import TextField from 'components/common/TextField'
@@ -14,12 +15,15 @@ const sesRegions = [
   {id: 'eu-west-1', name: 'EU (Ireland)'}
 ]
 
+const timezones = momentTimezone.tz.names()
+
 export default class NotificationsSettings extends React.Component {
   static propTypes = {
     settings: PropTypes.shape({
       enable: PropTypes.bool,
       sourceRegion: PropTypes.string,
-      sourceEmailAddress: PropTypes.string
+      sourceEmailAddress: PropTypes.string,
+      emailTimezone: PropTypes.string
     }),
     updateSettings: PropTypes.func.isRequired
   }
@@ -30,6 +34,7 @@ export default class NotificationsSettings extends React.Component {
       sourceRegion: props.settings.sourceRegion || sesRegions[0].id,
       enable: props.settings.enable || false,
       sourceEmailAddress: props.settings.sourceEmailAddress || '',
+      emailTimezone: props.settings.emailTimezone || 'America/Los_Angeles',
       isUpdating: false,
       message: ''
     }
@@ -52,6 +57,10 @@ export default class NotificationsSettings extends React.Component {
     this.setState({sourceRegion})
   }
 
+  handleChangeTimezone = (value) => {
+    this.setState({emailTimezone: value})
+  }
+
   handleChangeEmailAddress = (value) => {
     this.setState({sourceEmailAddress: value})
   }
@@ -61,7 +70,8 @@ export default class NotificationsSettings extends React.Component {
       emailNotification: {
         enable: this.state.enable,
         sourceRegion: this.state.sourceRegion,
-        sourceEmailAddress: this.state.sourceEmailAddress
+        sourceEmailAddress: this.state.sourceEmailAddress,
+        emailTimezone: this.state.emailTimezone
       }
     }
 
@@ -100,6 +110,11 @@ export default class NotificationsSettings extends React.Component {
         <TextField
           label='Source Email Address' text={this.state.sourceEmailAddress} rows={1}
           onChange={this.handleChangeEmailAddress} />
+        <div className={classes.item}>
+          <LabeledDropdownList
+            id='emailTimezone' label='Email Time Zone' onChange={this.handleChangeTimezone}
+            list={timezones} initialValue={this.state.emailTimezone} />
+        </div>
         <div className={classes.item}>
           <IconButton
             onClick={this.handleClickSaveButton} iconName='save' name='Save'

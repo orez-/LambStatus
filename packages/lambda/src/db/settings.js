@@ -12,7 +12,8 @@ export const settingKeys = {
   backgroundColor: 'BackgroundColor',
   enableEmailNotification: 'EnableEmailNotification',
   sourceEmailRegion: 'SourceEmailRegion',
-  sourceEmailAddress: 'SourceEmailAddress'
+  sourceEmailAddress: 'SourceEmailAddress',
+  emailTimezone: 'EmailTimezone'
 }
 
 export default class SettingsStore {
@@ -54,20 +55,25 @@ export default class SettingsStore {
 
   async getEmailNotification () {
     const rawResult = await this.store.batchGet([
-      settingKeys.enableEmailNotification, settingKeys.sourceEmailRegion, settingKeys.sourceEmailAddress
+      settingKeys.enableEmailNotification,
+      settingKeys.sourceEmailRegion,
+      settingKeys.sourceEmailAddress,
+      settingKeys.emailTimezone,
     ])
     return {
       enable: rawResult[0],
       sourceRegion: rawResult[1],
-      sourceEmailAddress: rawResult[2]
+      sourceEmailAddress: rawResult[2],
+      emailTimezone: rawResult[3],
     }
   }
 
-  async setEmailNotification ({enable, sourceRegion, sourceEmailAddress}) {
+  async setEmailNotification ({enable, sourceRegion, sourceEmailAddress, emailTimezone}) {
     return await this.store.batchSet({
       [settingKeys.enableEmailNotification]: enable,
       [settingKeys.sourceEmailRegion]: sourceRegion,
-      [settingKeys.sourceEmailAddress]: sourceEmailAddress
+      [settingKeys.sourceEmailAddress]: sourceEmailAddress,
+      [settingKeys.emailTimezone]: emailTimezone,
     })
   }
 }

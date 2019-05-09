@@ -10,7 +10,7 @@ import MaintenancesStore from 'db/maintenances'
 import MaintenanceUpdatesStore from 'db/maintenanceUpdates'
 import { Subscriber } from 'model/subscription'
 import { stackName } from 'utils/const'
-import { formatDateTimeInPST } from 'utils/datetime'
+import { formatDateTimeToTimezone } from 'utils/datetime'
 
 export async function handle (rawEvent, context, callback) {
   try {
@@ -36,8 +36,10 @@ export async function handle (rawEvent, context, callback) {
 const handleIncident = async (type, id) => {
   const settings = new SettingsProxy()
   const serviceName = await settings.getServiceName()
+  const emailNotification = await settings.getEmailNotification()
   const cloudFormation = new CloudFormation(stackName)
   const statusPageURL = await cloudFormation.getStatusPageCloudFrontURL()
+  const timezone = emailNotification.emailTimezone
 
   const incident = await new IncidentsStore().get(id)
   const incidentUpdates = await new IncidentUpdatesStore().query(id)
@@ -51,16 +53,18 @@ const handleIncident = async (type, id) => {
     }
   })
 
-  const email = new IncidentEmailContent({serviceName, statusPageURL, incident, incidentUpdates})
+  const email = new IncidentEmailContent({serviceName, statusPageURL, incident, incidentUpdates, timezone})
   await sendEmails(email)
 }
 
 const handleMaintenance = async (type, id) => {
   const settings = new SettingsProxy()
   const serviceName = await settings.getServiceName()
+  const emailNotification = await settings.getEmailNotification()
   const cloudFormation = new CloudFormation(stackName)
   const statusPageURL = await cloudFormation.getStatusPageCloudFrontURL()
 
+  const timezone = emailNotification.emailTimezone
   const maintenance = await new MaintenancesStore().get(id)
   const maintenanceUpdates = await new MaintenanceUpdatesStore().query(id)
   maintenanceUpdates.sort((a, b) => {
@@ -73,7 +77,7 @@ const handleMaintenance = async (type, id) => {
     }
   })
 
-  const email = new MaintenanceEmailContent({serviceName, statusPageURL, maintenance, maintenanceUpdates})
+  const email = new MaintenanceEmailContent({serviceName, statusPageURL, maintenance, maintenanceUpdates, timezone})
   await sendEmails(email)
 }
 
@@ -117,11 +121,12 @@ const listUsers = async (poolID) => {
 }
 
 export class EmailContent {
-  constructor ({serviceName, statusPageURL, event, eventUpdates}) {
+  constructor ({serviceName, statusPageURL, event, eventUpdates, timezone}) {
     this.serviceName = serviceName
     this.statusPageURL = statusPageURL
     this.event = event
     this.eventUpdates = eventUpdates
+    this.timezone = timezone
   }
 
   getTitle () {
@@ -186,10 +191,14 @@ export class EmailContent {
 View [status page](${this.statusPageURL}) or [unsubscribe here](${this.statusPageURL}/api/subscribers/unsubscribe?username=${user.username}&token=${user.token}).
 `
   }
+
+  formatDateTime (datetime) {
+    return formatDateTimeToTimezone(datetime, this.timezone)
+  }
 }
 
 export class IncidentEmailContent extends EmailContent {
-  constructor ({serviceName, statusPageURL, incident, incidentUpdates}) {
+  constructor ({serviceName, statusPageURL, incident, incidentUpdates, timezone}) {
     const event = incident
     const eventUpdates = incidentUpdates.map(upd => {
       return {
@@ -197,7 +206,7 @@ export class IncidentEmailContent extends EmailContent {
         status: upd.incidentStatus
       }
     })
-    super({serviceName, statusPageURL, event, eventUpdates})
+    super({serviceName, statusPageURL, event, eventUpdates, timezone})
 
     this.incident = incident
     this.incidentUpdates = incidentUpdates
@@ -218,7 +227,7 @@ export class IncidentEmailContent extends EmailContent {
   generateContentForNewEvent () {
     const latestUpdate = this.eventUpdates[0]
     return `
-## ${latestUpdate.status} - ${formatDateTimeInPST(latestUpdate.createdAt)}
+## ${latestUpdate.status} - ${this.formatDateTime(latestUpdate.createdAt)}
 
 ${latestUpdate.message}
 `
@@ -227,7 +236,7 @@ ${latestUpdate.message}
   generateContentForUpdatedEvent () {
     const latestUpdate = this.eventUpdates[0]
     let text = `
-## New Incident Status: ${latestUpdate.status} - ${formatDateTimeInPST(latestUpdate.createdAt)}
+## New Incident Status: ${latestUpdate.status} - ${this.formatDateTime(latestUpdate.createdAt)}
 
 ${latestUpdate.message}
 
@@ -237,7 +246,7 @@ ${latestUpdate.message}
     for (let i = 1; i < this.eventUpdates.length; i++) {
       const update = this.eventUpdates[i]
       text += `
-### ${update.status} - ${formatDateTimeInPST(update.createdAt)}
+### ${update.status} - ${this.formatDateTime(update.createdAt)}
 
 ${update.message}
 `
@@ -248,7 +257,7 @@ ${update.message}
 }
 
 export class MaintenanceEmailContent extends EmailContent {
-  constructor ({serviceName, statusPageURL, maintenance, maintenanceUpdates}) {
+  constructor ({serviceName, statusPageURL, maintenance, maintenanceUpdates, timezone}) {
     const event = maintenance
     const eventUpdates = maintenanceUpdates.map(upd => {
       return {
@@ -256,7 +265,7 @@ export class MaintenanceEmailContent extends EmailContent {
         status: upd.maintenanceStatus
       }
     })
-    super({serviceName, statusPageURL, event, eventUpdates})
+    super({serviceName, statusPageURL, event, eventUpdates, timezone})
 
     this.maintenance = maintenance
     this.maintenanceUpdates = maintenanceUpdates
@@ -266,7 +275,7 @@ export class MaintenanceEmailContent extends EmailContent {
     return `
 # ${this.maintenance.name}
 
-*${formatDateTimeInPST(this.maintenance.startAt)} - ${formatDateTimeInPST(this.maintenance.endAt)}*
+*${this.formatDateTime(this.maintenance.startAt)} - ${this.formatDateTime(this.maintenance.endAt)}*
 `
   }
 
@@ -281,7 +290,7 @@ export class MaintenanceEmailContent extends EmailContent {
   generateContentForNewEvent () {
     const latestUpdate = this.eventUpdates[0]
     return `
-## Maintenance Details - ${formatDateTimeInPST(latestUpdate.createdAt)}
+## Maintenance Details - ${this.formatDateTime(latestUpdate.createdAt)}
 
 ${latestUpdate.message}
 `
@@ -290,7 +299,7 @@ ${latestUpdate.message}
   generateContentForUpdatedEvent () {
     const latestUpdate = this.eventUpdates[0]
     let text = `
-## New Maintenance Status: ${latestUpdate.status} - ${formatDateTimeInPST(latestUpdate.createdAt)}
+## New Maintenance Status: ${latestUpdate.status} - ${this.formatDateTime(latestUpdate.createdAt)}
 
 ${latestUpdate.message}
 
@@ -300,7 +309,7 @@ ${latestUpdate.message}
     for (let i = 1; i < this.eventUpdates.length; i++) {
       const update = this.eventUpdates[i]
       text += `
-### ${update.status} - ${formatDateTimeInPST(update.createdAt)}
+### ${update.status} - ${this.formatDateTime(update.createdAt)}
 
 ${update.message}
 `

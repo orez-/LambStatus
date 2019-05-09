@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { formatDateTime, formatDateTimeInPST, changeTimezoneToUTC } from 'utils/datetime'
+import { formatDateTime, formatDateTimeToTimezone, changeTimezoneToUTC } from 'utils/datetime'
 
 describe('datetime', () => {
   describe('formatDateTime', () => {
@@ -9,10 +9,14 @@ describe('datetime', () => {
     })
   })
 
-  describe('formatDateTimeInPST', () => {
-    it('should format datetime in PST', async () => {
-      assert(formatDateTimeInPST('2018-04-09T01:00:00Z') === 'Apr 8, 18:00 PST')
-      assert(formatDateTimeInPST('2018-04-09T01:00:00+09:00') === 'Apr 8, 09:00 PST')
+  describe('formatDateTimeToTimezone', () => {
+    it('should format datetime in given timezone', async () => {
+      assert(formatDateTimeToTimezone('2018-01-09T01:00:00Z', 'America/Los_Angeles') === 'Jan 8, 17:00 PST')
+      assert(formatDateTimeToTimezone('2018-01-09T01:00:00+09:00', 'America/Los_Angeles') === 'Jan 8, 08:00 PST')
+      assert(formatDateTimeToTimezone('2018-04-09T01:00:00Z', 'America/Los_Angeles') === 'Apr 8, 18:00 PDT')
+      assert(formatDateTimeToTimezone('2018-04-09T01:00:00+09:00', 'America/Los_Angeles') === 'Apr 8, 09:00 PDT')
+      assert(formatDateTimeToTimezone('2018-04-09T01:00:00Z', 'America/New_York') === 'Apr 8, 21:00 EDT')
+      assert(formatDateTimeToTimezone('2018-04-09T01:00:00+09:00', 'America/New_York') === 'Apr 8, 12:00 EDT')
     })
   })
 
